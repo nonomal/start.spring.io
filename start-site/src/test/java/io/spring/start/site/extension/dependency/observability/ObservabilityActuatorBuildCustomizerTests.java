@@ -32,15 +32,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ObservabilityActuatorBuildCustomizerTests extends AbstractExtensionTests {
 
 	@ParameterizedTest
-	@ValueSource(strings = { "datadog", "dynatrace", "influx", "graphite", "new-relic", "distributed-tracing", "zipkin",
-			"wavefront" })
+	@ValueSource(strings = { "datadog", "dynatrace", "influx", "graphite", "new-relic", "otlp-metrics", "prometheus",
+			"distributed-tracing", "zipkin", "wavefront" })
 	void actuatorIsAddedWithObservabilityEntries(String dependency) {
-		assertThat(generateProject("3.1.0", dependency)).mavenBuild().hasDependency(getDependency("actuator"));
+		assertThat(generateProject(dependency)).mavenBuild().hasDependency(getDependency("actuator"));
 	}
 
-	private ProjectStructure generateProject(String bootVersion, String... dependencies) {
+	private ProjectStructure generateProject(String... dependencies) {
 		ProjectRequest request = createProjectRequest(dependencies);
-		request.setBootVersion(bootVersion);
 		request.setType("maven-build");
 		return generateProject(request);
 	}

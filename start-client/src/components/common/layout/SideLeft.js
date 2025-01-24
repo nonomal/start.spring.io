@@ -5,14 +5,15 @@ import { clearAllBodyScrollLocks, disableBodyScroll } from 'body-scroll-lock'
 
 import Header from './Header'
 import { AppContext } from '../../reducer/App'
-import { IconGithub } from '../icons'
+import { IconGithub, IconHistory, IconFavorite } from '../icons'
 
 function SideLeft() {
   const [isOpen, setIsOpen] = useState(false)
   const [lock, setLock] = useState(false)
+  const [status, setStatus] = useState('close')
   const wrapper = useRef(null)
 
-  const { nav, dispatch } = useContext(AppContext)
+  const { nav, histories, dispatch, favorites } = useContext(AppContext)
 
   useEffect(() => {
     if (get(wrapper, 'current') && nav) {
@@ -25,8 +26,10 @@ function SideLeft() {
 
   const onEnter = () => {
     setLock(true)
+    setStatus('opening')
     setTimeout(() => {
       setIsOpen(true)
+      setStatus('open')
     }, 350)
   }
   const onEntered = () => {
@@ -36,13 +39,20 @@ function SideLeft() {
   const onEnded = () => {
     setLock(true)
     setIsOpen(false)
+    setStatus('closing')
   }
   const onExited = () => {
     setLock(false)
+    setStatus('close')
   }
   return (
     <>
-      <div id='side-left' className={isOpen ? 'is-open' : ''}>
+      <div
+        id='side-left'
+        className={`${isOpen ? 'is-open' : ''} ${
+          status === 'opening' ? 'is-opening' : ''
+        } ${status === 'closing' ? 'is-closing' : ''}`}
+      >
         <div className='side-container'>
           <div className='navigation-action'>
             <button
@@ -61,6 +71,53 @@ function SideLeft() {
                 <span className='hamburger-inner' />
               </span>
             </button>
+
+            <TransitionGroup component={null}>
+              {(status === 'close' || status === 'closing') && (
+                <CSSTransition classNames='navgiation-actions' timeout={500}>
+                  <div className='navgiation-actions'>
+                    {favorites.length > 0 && (
+                      <>
+                        <div className='navigation-divider' />
+                        <button
+                          type='button'
+                          aria-label='Menu'
+                          aria-controls='navigation'
+                          className='navigation-item'
+                          onClick={() => {
+                            dispatch({
+                              type: 'UPDATE',
+                              payload: { favorite: true },
+                            })
+                          }}
+                        >
+                          <IconFavorite />
+                        </button>
+                      </>
+                    )}
+                    {histories.length > 0 && (
+                      <>
+                        <div className='navigation-divider' />
+                        <button
+                          type='button'
+                          aria-label='Menu'
+                          aria-controls='navigation'
+                          className='navigation-item'
+                          onClick={() => {
+                            dispatch({
+                              type: 'UPDATE',
+                              payload: { history: true },
+                            })
+                          }}
+                        >
+                          <IconHistory />
+                        </button>
+                      </>
+                    )}
+                  </div>
+                </CSSTransition>
+              )}
+            </TransitionGroup>
           </div>
           <div className='social'>
             <a
@@ -164,8 +221,8 @@ function SideLeft() {
                       >
                         Spring Initializr
                       </a>
-                    </span>{' '}
-                    <span>and</span>{' '}
+                    </span>
+                    <span>,</span>{' '}
                     <span>
                       <a
                         target='_blank'
@@ -173,6 +230,16 @@ function SideLeft() {
                         href='https://buildpacks.io/'
                       >
                         Cloud Native Buildpacks
+                      </a>
+                    </span>{' '}
+                    <span>and</span>{' '}
+                    <span>
+                      <a
+                        target='_blank'
+                        rel='noopener noreferrer'
+                        href='https://azure.microsoft.com/en-us/products/spring-apps'
+                      >
+                        Azure Spring Apps
                       </a>
                     </span>
                   </div>

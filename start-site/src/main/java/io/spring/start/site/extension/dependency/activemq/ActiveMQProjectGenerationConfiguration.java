@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@
 
 package io.spring.start.site.extension.dependency.activemq;
 
-import io.spring.initializr.generator.condition.ConditionalOnPlatformVersion;
 import io.spring.initializr.generator.condition.ConditionalOnRequestedDependency;
 import io.spring.initializr.generator.project.ProjectGenerationConfiguration;
 import io.spring.start.site.container.ComposeFileCustomizer;
@@ -35,19 +34,20 @@ import org.springframework.context.annotation.Bean;
 @ConditionalOnRequestedDependency("activemq")
 public class ActiveMQProjectGenerationConfiguration {
 
+	private static final String TESTCONTAINERS_CLASS_NAME = "org.testcontainers.activemq.ActiveMQContainer";
+
 	@Bean
-	@ConditionalOnPlatformVersion("3.2.0-M1")
 	@ConditionalOnRequestedDependency("testcontainers")
-	ServiceConnectionsCustomizer activeMQServiceConnectionsCustomizer(DockerServiceResolver serviceResolver) {
-		return (serviceConnections) -> serviceResolver.doWith("activeMQ", (service) -> serviceConnections
-			.addServiceConnection(ServiceConnection.ofGenericContainer("activeMQ", service, "symptoma/activemq")));
+	ServiceConnectionsCustomizer activeMQClassicServiceConnectionsCustomizer(DockerServiceResolver serviceResolver) {
+		return (serviceConnections) -> serviceResolver.doWith("activeMQClassic",
+				(service) -> serviceConnections.addServiceConnection(
+						ServiceConnection.ofContainer("activemq", service, TESTCONTAINERS_CLASS_NAME, false)));
 	}
 
 	@Bean
-	@ConditionalOnPlatformVersion("3.2.0-M1")
 	@ConditionalOnRequestedDependency("docker-compose")
-	ComposeFileCustomizer activeMQComposeFileCustomizer(DockerServiceResolver serviceResolver) {
-		return (composeFile) -> serviceResolver.doWith("activeMQ",
+	ComposeFileCustomizer activeMQClassicComposeFileCustomizer(DockerServiceResolver serviceResolver) {
+		return (composeFile) -> serviceResolver.doWith("activeMQClassic",
 				(service) -> composeFile.services().add("activemq", service));
 	}
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,28 +29,20 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests for {@link ActiveMQProjectGenerationConfiguration}.
  *
  * @author Stephane Nicoll
+ * @author Eddú Meléndez
  */
 class ActiveMQProjectGenerationConfigurationTests extends AbstractExtensionTests {
 
 	@Test
 	void dockerComposeWhenDockerComposeIsNotSelectedDoesNotCreateService() {
 		ProjectRequest request = createProjectRequest("web", "activemq");
-		request.setBootVersion("3.2.0-M1");
 		ProjectStructure structure = generateProject(request);
 		assertThat(structure.getProjectDirectory().resolve("compose.yaml")).doesNotExist();
 	}
 
 	@Test
-	void dockerComposeWhenIncompatibleSpringBootVersionDoesNotCreateService() {
+	void dockerComposeCreatesAppropriateServiceWithVersion() {
 		ProjectRequest request = createProjectRequest("docker-compose", "activemq");
-		request.setBootVersion("3.1.1");
-		assertThat(composeFile(request)).doesNotContain("activemq");
-	}
-
-	@Test
-	void dockerComposeCreatesAppropriateService() {
-		ProjectRequest request = createProjectRequest("docker-compose", "activemq");
-		request.setBootVersion("3.2.0-M1");
 		assertThat(composeFile(request)).hasSameContentAs(new ClassPathResource("compose/activemq.yaml"));
 	}
 

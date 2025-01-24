@@ -22,6 +22,7 @@ import io.spring.initializr.generator.test.project.ProjectAssetTester;
 import io.spring.initializr.generator.test.project.ProjectStructure;
 import io.spring.initializr.generator.version.Version;
 import io.spring.initializr.web.project.ProjectRequest;
+import io.spring.start.site.SupportedBootVersion;
 import io.spring.start.site.container.DockerServiceResolver;
 import io.spring.start.site.container.ServiceConnections;
 import io.spring.start.site.container.ServiceConnectionsCustomizer;
@@ -48,35 +49,15 @@ class SpringPulsarProjectGenerationConfigurationTests extends AbstractExtensionT
 	class PulsarDependencyConfigurationTests {
 
 		@Test
-		void pulsarLegacyStarterUsedWhenBoot30orBoot31Selected() {
+		void pulsarBootStarterUsed() {
 			ProjectRequest request = createProjectRequest("pulsar");
-			request.setBootVersion("3.1.0");
-			ProjectStructure project = generateProject(request);
-			assertThat(project).mavenBuild()
-				.hasDependency("org.springframework.pulsar", "spring-pulsar-spring-boot-starter");
-		}
-
-		@Test
-		void pulsarReactiveLegacyStarterUsedWhenBoot30orBoot31Selected() {
-			ProjectRequest request = createProjectRequest("pulsar-reactive");
-			request.setBootVersion("3.1.0");
-			ProjectStructure project = generateProject(request);
-			assertThat(project).mavenBuild()
-				.hasDependency("org.springframework.pulsar", "spring-pulsar-reactive-spring-boot-starter");
-		}
-
-		@Test
-		void pulsarBootStarterUsedWhenBoot32Selected() {
-			ProjectRequest request = createProjectRequest("pulsar");
-			request.setBootVersion("3.2.0-M3");
 			ProjectStructure project = generateProject(request);
 			assertThat(project).mavenBuild().hasDependency("org.springframework.boot", "spring-boot-starter-pulsar");
 		}
 
 		@Test
-		void pulsarReactiveBootStarterUsedWhenBoot32Selected() {
+		void pulsarReactiveBootStarterUsed() {
 			ProjectRequest request = createProjectRequest("pulsar-reactive");
-			request.setBootVersion("3.2.0-M3");
 			ProjectStructure project = generateProject(request);
 			assertThat(project).mavenBuild()
 				.hasDependency("org.springframework.boot", "spring-boot-starter-pulsar-reactive");
@@ -90,24 +71,14 @@ class SpringPulsarProjectGenerationConfigurationTests extends AbstractExtensionT
 		@Test
 		void serviceNotCreatedWhenDockerComposeNotSelected() {
 			ProjectRequest request = createProjectRequest("pulsar");
-			request.setBootVersion("3.2.0-M3");
 			ProjectStructure structure = generateProject(request);
 			assertThat(structure.getProjectDirectory().resolve("compose.yaml")).doesNotExist();
-		}
-
-		@ParameterizedTest
-		@ValueSource(strings = { "3.1.3", "3.2.0-M2" })
-		void serviceNotCreatedWhenIncompatibleBootVersionSelected(String bootVersion) {
-			ProjectRequest request = createProjectRequest("docker-compose", "pulsar");
-			request.setBootVersion(bootVersion);
-			assertThat(composeFile(request)).doesNotContain("pulsar");
 		}
 
 		@ParameterizedTest
 		@ValueSource(strings = { "pulsar", "pulsar-reactive" })
 		void serviceCreatedWhenDockerComposeSelectedWithCompatibleBootVersion(String pulsarDependencyId) {
 			ProjectRequest request = createProjectRequest("docker-compose", pulsarDependencyId);
-			request.setBootVersion("3.2.0-M3");
 			assertThat(composeFile(request)).hasSameContentAs(new ClassPathResource("compose/pulsar.yaml"));
 		}
 
@@ -123,7 +94,7 @@ class SpringPulsarProjectGenerationConfigurationTests extends AbstractExtensionT
 		@Test
 		void connectionNotAddedWhenTestcontainersNotSelected() {
 			MutableProjectDescription description = new MutableProjectDescription();
-			description.setPlatformVersion(Version.parse("3.2.0-M3"));
+			description.setPlatformVersion(Version.parse(SupportedBootVersion.latest().getVersion()));
 			description.addDependency("pulsar", mock(Dependency.class));
 			this.projectTester.configure(description,
 					(context) -> assertThat(context).doesNotHaveBean("pulsarServiceConnectionsCustomizer"));
@@ -132,16 +103,7 @@ class SpringPulsarProjectGenerationConfigurationTests extends AbstractExtensionT
 		@Test
 		void connectionNotAddedWhenPulsarNotSelected() {
 			MutableProjectDescription description = new MutableProjectDescription();
-			description.setPlatformVersion(Version.parse("3.2.0-M3"));
-			description.addDependency("testcontainers", mock(Dependency.class));
-			this.projectTester.configure(description,
-					(context) -> assertThat(context).doesNotHaveBean("pulsarServiceConnectionsCustomizer"));
-		}
-
-		@Test
-		void connectionNotAddedWhenIncompatibleBootVersionSelected() {
-			MutableProjectDescription description = new MutableProjectDescription();
-			description.addDependency("pulsar", mock(Dependency.class));
+			description.setPlatformVersion(Version.parse(SupportedBootVersion.latest().getVersion()));
 			description.addDependency("testcontainers", mock(Dependency.class));
 			this.projectTester.configure(description,
 					(context) -> assertThat(context).doesNotHaveBean("pulsarServiceConnectionsCustomizer"));
@@ -151,7 +113,7 @@ class SpringPulsarProjectGenerationConfigurationTests extends AbstractExtensionT
 		@ValueSource(strings = { "pulsar", "pulsar-reactive" })
 		void connectionAddedWhenTestcontainersAndPulsarSelectedWithCompatibleBootVersion(String pulsarDependencyId) {
 			MutableProjectDescription description = new MutableProjectDescription();
-			description.setPlatformVersion(Version.parse("3.2.0-M3"));
+			description.setPlatformVersion(Version.parse(SupportedBootVersion.latest().getVersion()));
 			description.addDependency("testcontainers", mock(Dependency.class));
 			description.addDependency(pulsarDependencyId, mock(Dependency.class));
 			this.projectTester.configure(description,
@@ -178,64 +140,6 @@ class SpringPulsarProjectGenerationConfigurationTests extends AbstractExtensionT
 					assertThat(dockerService.getPorts()).containsExactlyInAnyOrder(8080, 6650);
 				});
 			});
-		}
-
-	}
-
-	@Nested
-	class SpringPulsarBinderConfigurationTests {
-
-		@Test
-		void binderNotAddedWhenCloudStreamNotSelected() {
-			ProjectRequest request = createProjectRequest("pulsar");
-			request.setBootVersion("3.1.3");
-			ProjectStructure project = generateProject(request);
-			assertNoBinder(project);
-			assertThat(project).mavenBuild()
-				.hasDependency("org.springframework.pulsar", "spring-pulsar-spring-boot-starter");
-		}
-
-		@Test
-		void binderNotAddedWhenPulsarNotSelected() {
-			ProjectRequest request = createProjectRequest("cloud-stream");
-			request.setBootVersion("3.1.3");
-			ProjectStructure project = generateProject(request);
-			assertNoBinder(project);
-		}
-
-		@ParameterizedTest
-		@ValueSource(strings = { "3.2.0-M1", "3.2.0-M3" })
-		void binderNotAddedWhenPulsarAndCloudStreamSelectedWithIncompatibleBootVersion(String bootVersion) {
-			ProjectRequest request = createProjectRequest("pulsar", "cloud-stream");
-			request.setBootVersion(bootVersion);
-			ProjectStructure project = generateProject(request);
-			assertNoBinder(project);
-		}
-
-		@Test
-		void binderAddedWhenPulsarAndCloudStreamSelectedWithCompatibleBootVersion() {
-			ProjectRequest request = createProjectRequest("pulsar", "cloud-stream");
-			request.setBootVersion("3.1.0");
-			ProjectStructure project = generateProject(request);
-			assertBinder(project);
-		}
-
-		@Test
-		void binderAddedWhenPulsarReactiveAndCloudStreamSelectedWithCompatibleBootVersion() {
-			ProjectRequest request = createProjectRequest("pulsar-reactive", "cloud-stream");
-			request.setBootVersion("3.1.0");
-			ProjectStructure project = generateProject(request);
-			assertBinder(project);
-		}
-
-		private void assertNoBinder(ProjectStructure project) {
-			assertThat(project).mavenBuild()
-				.doesNotHaveDependency("org.springframework.pulsar", "spring-pulsar-spring-cloud-stream-binder");
-		}
-
-		private void assertBinder(ProjectStructure project) {
-			assertThat(project).mavenBuild()
-				.hasDependency("org.springframework.pulsar", "spring-pulsar-spring-cloud-stream-binder", "0.2.0");
 		}
 
 	}
