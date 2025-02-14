@@ -20,6 +20,7 @@ import io.spring.initializr.generator.language.groovy.GroovyLanguage;
 import io.spring.initializr.generator.version.Version;
 import io.spring.initializr.versionresolver.MavenVersionResolver;
 import io.spring.initializr.web.project.ProjectRequest;
+import io.spring.start.site.SupportedBootVersion;
 import io.spring.start.site.extension.AbstractExtensionTests;
 import org.junit.jupiter.api.Test;
 
@@ -60,9 +61,9 @@ class GraalVmProjectGenerationConfigurationTests extends AbstractExtensionTests 
 
 	@Test
 	void gradleBuildConfigureNativeBuildToolsPlugin(@Autowired MavenVersionResolver mavenVersionResolver) {
-		String nbtVersion = NativeBuildtoolsVersionResolver.resolve(mavenVersionResolver, Version.parse("3.1.0"));
+		String nbtVersion = NativeBuildtoolsVersionResolver.resolve(mavenVersionResolver,
+				Version.parse(SupportedBootVersion.latest().getVersion()));
 		ProjectRequest request = createNativeProjectRequest();
-		request.setBootVersion("3.1.0");
 		assertThat(gradleBuild(request)).hasPlugin("org.graalvm.buildtools.native", nbtVersion);
 	}
 
@@ -91,7 +92,7 @@ class GraalVmProjectGenerationConfigurationTests extends AbstractExtensionTests 
 		// @formatter:off
 						"hibernate {",
 						"	enhancement {",
-						"		enableAssociationManagement.set(true)",
+						"		enableAssociationManagement = true",
 						"	}",
 						"}");
 		// @formatter:on
@@ -137,7 +138,6 @@ class GraalVmProjectGenerationConfigurationTests extends AbstractExtensionTests 
 	private ProjectRequest createNativeProjectRequest(String... dependencies) {
 		ProjectRequest projectRequest = createProjectRequest(dependencies);
 		projectRequest.getDependencies().add(0, "native");
-		projectRequest.setBootVersion("3.1.0");
 		return projectRequest;
 	}
 

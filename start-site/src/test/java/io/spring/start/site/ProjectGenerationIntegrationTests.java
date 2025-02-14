@@ -17,17 +17,11 @@
 package io.spring.start.site;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Queue;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
 import io.spring.initializr.generator.buildsystem.BuildSystem;
@@ -48,9 +42,11 @@ import io.spring.initializr.web.project.DefaultProjectRequestToDescriptionConver
 import io.spring.initializr.web.project.ProjectGenerationInvoker;
 import io.spring.initializr.web.project.ProjectRequest;
 import io.spring.initializr.web.project.WebProjectRequest;
+import io.spring.start.testsupport.Homes;
+import io.spring.start.testsupport.TemporaryFiles;
+import org.apache.commons.lang3.SystemUtils;
 import org.junit.jupiter.api.TestInstance;
 import org.junit.jupiter.api.TestInstance.Lifecycle;
-import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.api.parallel.Execution;
 import org.junit.jupiter.api.parallel.ExecutionMode;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -61,7 +57,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.util.Assert;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -77,10 +72,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 @TestInstance(Lifecycle.PER_CLASS)
 @Execution(ExecutionMode.CONCURRENT)
 class ProjectGenerationIntegrationTests {
-
-	private static final Homes mavenHomes = new Homes("maven-home");
-
-	private static final Homes gradleHomes = new Homes("gradle-home");
 
 	private final ProjectGenerationInvoker<ProjectRequest> invoker;
 
@@ -127,8 +118,8 @@ class ProjectGenerationIntegrationTests {
 
 	@ParameterizedTest(name = "{0} - {1} - {2} - {3}")
 	@MethodSource("parameters")
-	void projectBuilds(Version bootVersion, Packaging packaging, Language language, BuildSystem buildSystem,
-			@TempDir Path directory) throws IOException, InterruptedException {
+	void projectBuilds(Version bootVersion, Packaging packaging, Language language, BuildSystem buildSystem)
+			throws IOException, InterruptedException {
 		WebProjectRequest request = new WebProjectRequest();
 		request.setBootVersion(bootVersion.toString());
 		request.setLanguage(language.id());
@@ -139,92 +130,46 @@ class ProjectGenerationIntegrationTests {
 		request.setApplicationName("DemoApplication");
 		request.setDependencies(Arrays.asList("devtools", "configuration-processor"));
 		Path project = this.invoker.invokeProjectStructureGeneration(request).getRootDirectory();
-		Path home = acquireHome(buildSystem);
-		try {
-			ProcessBuilder processBuilder = createProcessBuilder(buildSystem, home);
-			processBuilder.directory(project.toFile());
-			Path output = Files.createTempFile(directory, "output-", ".log");
-			processBuilder.redirectError(output.toFile());
-			processBuilder.redirectOutput(output.toFile());
-			assertThat(processBuilder.start().waitFor()).describedAs(String.join("\n", Files.readAllLines(output)))
-				.isEqualTo(0);
-		}
-		finally {
-			releaseHome(buildSystem, home);
-		}
+		Path home = getHome(buildSystem);
+		ProcessBuilder processBuilder = createProcessBuilder(project, buildSystem, home);
+		Path output = TemporaryFiles.newTemporaryDirectory("ProjectGenerationIntegrationTests-projectBuilds")
+			.resolve("output.log");
+		processBuilder.redirectError(output.toFile());
+		processBuilder.redirectOutput(output.toFile());
+		assertThat(processBuilder.start().waitFor()).describedAs(String.join("\n", Files.readAllLines(output)))
+			.isEqualTo(0);
 	}
 
-	private Path acquireHome(BuildSystem buildSystem) {
+	private Path getHome(BuildSystem buildSystem) {
 		return switch (buildSystem.id()) {
-			case MavenBuildSystem.ID -> mavenHomes.acquire();
-			case GradleBuildSystem.ID -> gradleHomes.acquire();
+			case MavenBuildSystem.ID -> Homes.MAVEN.get();
+			case GradleBuildSystem.ID -> Homes.GRADLE.get();
 			default -> throw new IllegalStateException("Unknown build system '%s'".formatted(buildSystem.id()));
 		};
 	}
 
-	private void releaseHome(BuildSystem buildSystem, Path home) {
-		switch (buildSystem.id()) {
-			case MavenBuildSystem.ID -> mavenHomes.release(home);
-			case GradleBuildSystem.ID -> gradleHomes.release(home);
-			default -> throw new IllegalStateException("Unknown build system '%s'".formatted(buildSystem.id()));
-		}
-	}
-
-	private ProcessBuilder createProcessBuilder(BuildSystem buildSystem, Path home) {
+	private ProcessBuilder createProcessBuilder(Path directory, BuildSystem buildSystem, Path home) {
 		if (buildSystem.id().equals(MavenBuildSystem.ID)) {
-			ProcessBuilder processBuilder = new ProcessBuilder("./mvnw",
-					"-Dmaven.repo.local=" + home.resolve("repository").toFile(), "package");
-			processBuilder.environment().put("MAVEN_USER_HOME", home.toFile().getAbsolutePath());
+			String command = (isWindows()) ? "mvnw.cmd" : "mvnw";
+			ProcessBuilder processBuilder = new ProcessBuilder(directory.resolve(command).toAbsolutePath().toString(),
+					"-Dmaven.repo.local=" + home.resolve("repository").toAbsolutePath(), "package");
+			processBuilder.environment().put("MAVEN_USER_HOME", home.toAbsolutePath().toString());
+			processBuilder.directory(directory.toFile());
 			return processBuilder;
 		}
 		if (buildSystem.id().equals(GradleBuildSystem.ID)) {
-			ProcessBuilder processBuilder = new ProcessBuilder("./gradlew", "--no-daemon", "build");
-			processBuilder.environment().put("GRADLE_USER_HOME", home.toFile().getAbsolutePath());
+			String command = (isWindows()) ? "gradlew.bat" : "gradlew";
+			ProcessBuilder processBuilder = new ProcessBuilder(directory.resolve(command).toAbsolutePath().toString(),
+					"--no-daemon", "build");
+			processBuilder.environment().put("GRADLE_USER_HOME", home.toAbsolutePath().toString());
+			processBuilder.directory(directory.toFile());
 			return processBuilder;
 		}
 		throw new IllegalStateException("Unknown build system '%s'".formatted(buildSystem.id()));
 	}
 
-	private static final class Homes {
-
-		private final Set<Path> homes = ConcurrentHashMap.newKeySet();
-
-		private final Queue<Path> freeHomes = new ConcurrentLinkedQueue<>();
-
-		private final AtomicInteger counter = new AtomicInteger();
-
-		private final String prefix;
-
-		private Homes(String prefix) {
-			this.prefix = prefix;
-		}
-
-		Path acquire() {
-			Path home = this.freeHomes.poll();
-			if (home == null) {
-				home = createTempDirectory();
-				this.homes.add(home);
-			}
-			return home;
-		}
-
-		void release(Path home) {
-			Assert.state(this.homes.contains(home), "Invalid home '%s'".formatted(home));
-			this.freeHomes.add(home);
-		}
-
-		private Path createTempDirectory() {
-			try {
-				Path path = Path.of(System.getProperty("java.io.tmpdir"))
-					.resolve(this.prefix + "-" + this.counter.getAndIncrement());
-				Files.createDirectories(path);
-				return path;
-			}
-			catch (IOException ex) {
-				throw new UncheckedIOException("Failed to create temp directory", ex);
-			}
-		}
-
+	private boolean isWindows() {
+		return SystemUtils.IS_OS_WINDOWS;
 	}
 
 }

@@ -16,10 +16,10 @@
 
 package io.spring.start.site.test;
 
-import java.nio.file.Path;
 import java.util.Map;
 
 import io.spring.initializr.versionresolver.MavenVersionResolver;
+import io.spring.start.testsupport.TemporaryFiles;
 
 /**
  * A {@link MavenVersionResolver} for tests, which uses a fixed directory for the cache.
@@ -31,7 +31,7 @@ public class TestMavenVersionResolver implements MavenVersionResolver {
 	private static final TestMavenVersionResolver INSTANCE = new TestMavenVersionResolver();
 
 	private final MavenVersionResolver delegate = MavenVersionResolver
-		.withCacheLocation(Path.of(System.getProperty("java.io.tmpdir")).resolve("maven-version-resolver-cache"));
+		.withCacheLocation(TemporaryFiles.getTempDir().resolve("maven-version-resolver-cache"));
 
 	@Override
 	public Map<String, String> resolveDependencies(String groupId, String artifactId, String version) {

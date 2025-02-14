@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2024 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,11 +16,8 @@
 
 package io.spring.start.site.extension.dependency.oracle;
 
+import io.spring.initializr.generator.buildsystem.Build;
 import io.spring.initializr.generator.condition.ConditionalOnRequestedDependency;
-import io.spring.initializr.generator.project.ProjectDescription;
-import io.spring.initializr.generator.version.Version;
-import io.spring.initializr.generator.version.VersionParser;
-import io.spring.initializr.generator.version.VersionRange;
 import io.spring.start.site.container.ComposeFileCustomizer;
 import io.spring.start.site.container.DockerServiceResolver;
 import io.spring.start.site.container.ServiceConnections.ServiceConnection;
@@ -34,51 +31,38 @@ import org.springframework.context.annotation.Configuration;
  *
  * @author Moritz Halbritter
  * @author Stephane Nicoll
+ * @author Eddú Meléndez
  */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnRequestedDependency("oracle")
 class OracleProjectGenerationConfiguration {
+
+	private static final String TESTCONTAINERS_CLASS_NAME = "org.testcontainers.oracle.OracleContainer";
 
 	@Bean
 	@ConditionalOnRequestedDependency("testcontainers")
-	ServiceConnectionsCustomizer oracleServiceConnectionsCustomizer(DockerServiceResolver serviceResolver,
-			ProjectDescription projectDescription) {
-		OracleContainer oracleContainer = OracleContainer.forVersion(projectDescription.getPlatformVersion());
-		return (serviceConnections) -> serviceResolver.doWith(oracleContainer.serviceId,
-				(service) -> serviceConnections.addServiceConnection(ServiceConnection
-					.ofContainer(oracleContainer.serviceId, service, oracleContainer.testcontainersClassName, false)));
+	ServiceConnectionsCustomizer oracleServiceConnectionsCustomizer(Build build,
+			DockerServiceResolver serviceResolver) {
+		return (serviceConnections) -> {
+			if (isOracleEnabled(build)) {
+				serviceResolver.doWith("oracleFree", (service) -> serviceConnections.addServiceConnection(
+						ServiceConnection.ofContainer("oracleFree", service, TESTCONTAINERS_CLASS_NAME, false)));
+			}
+		};
 	}
 
 	@Bean
 	@ConditionalOnRequestedDependency("docker-compose")
-	ComposeFileCustomizer oracleComposeFileCustomizer(DockerServiceResolver serviceResolver,
-			ProjectDescription projectDescription) {
-		OracleContainer oracleContainer = OracleContainer.forVersion(projectDescription.getPlatformVersion());
-		return (composeFile) -> serviceResolver.doWith(oracleContainer.serviceId, (service) -> composeFile.services()
-			.add("oracle", service.andThen((builder) -> builder.environment("ORACLE_PASSWORD", "secret"))));
+	ComposeFileCustomizer oracleComposeFileCustomizer(Build build, DockerServiceResolver serviceResolver) {
+		return (composeFile) -> {
+			if (isOracleEnabled(build)) {
+				serviceResolver.doWith("oracleFree", (service) -> composeFile.services()
+					.add("oracle", service.andThen((builder) -> builder.environment("ORACLE_PASSWORD", "secret"))));
+			}
+		};
 	}
 
-	private enum OracleContainer {
-
-		FREE("oracleFree", "org.testcontainers.oracle.OracleContainer"),
-
-		XE("oracleXe", "org.testcontainers.containers.OracleContainer");
-
-		private static final VersionRange SPRING_BOOT_3_2_0_OR_LATER = VersionParser.DEFAULT.parseRange("3.2.0");
-
-		private final String serviceId;
-
-		private final String testcontainersClassName;
-
-		OracleContainer(String serviceId, String testcontainersClassName) {
-			this.serviceId = serviceId;
-			this.testcontainersClassName = testcontainersClassName;
-		}
-
-		static OracleContainer forVersion(Version version) {
-			return SPRING_BOOT_3_2_0_OR_LATER.match(version) ? FREE : XE;
-		}
-
+	private boolean isOracleEnabled(Build build) {
+		return build.dependencies().has("oracle") || build.dependencies().has("spring-ai-vectordb-oracle");
 	}
 
 }

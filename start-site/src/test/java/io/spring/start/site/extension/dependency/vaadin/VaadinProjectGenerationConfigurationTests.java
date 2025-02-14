@@ -1,5 +1,5 @@
 /*
- * Copyright 2012-2023 the original author or authors.
+ * Copyright 2012-2025 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ package io.spring.start.site.extension.dependency.vaadin;
 
 import io.spring.initializr.generator.version.Version;
 import io.spring.initializr.web.project.ProjectRequest;
+import io.spring.start.site.SupportedBootVersion;
 import io.spring.start.site.extension.AbstractExtensionTests;
 import org.junit.jupiter.api.Test;
 
@@ -27,28 +28,53 @@ import static org.assertj.core.api.Assertions.assertThat;
  * Tests for {@link VaadinProjectGenerationConfiguration}.
  *
  * @author Stephane Nicoll
+ * @author Moritz Halbritter
  */
 class VaadinProjectGenerationConfigurationTests extends AbstractExtensionTests {
 
+	private static final SupportedBootVersion BOOT_VERSION = SupportedBootVersion.latest();
+
 	@Test
 	void mavenBuildWithVaadinAddProductionProfileWithoutProductionModeFlag() {
-		ProjectRequest request = createProjectRequest("vaadin", "data-jpa");
-		request.setBootVersion("3.1.0");
-		assertThat(mavenPom(request)).hasProfile("production")
-			.lines()
-			.containsSequence("		<profile>", "			<id>production</id>", "			<build>",
-					"				<plugins>", "					<plugin>",
-					"						<groupId>com.vaadin</groupId>",
-					"						<artifactId>vaadin-maven-plugin</artifactId>",
-					"						<version>${vaadin.version}</version>",
-					"						<executions>", "							<execution>",
-					"								<id>frontend</id>",
-					"								<phase>compile</phase>", "								<goals>",
-					"									<goal>prepare-frontend</goal>",
-					"									<goal>build-frontend</goal>",
-					"								</goals>", "							</execution>",
-					"						</executions>", "					</plugin>", "				</plugins>",
-					"			</build>", "		</profile>");
+		ProjectRequest request = createProjectRequest(BOOT_VERSION, "vaadin", "data-jpa");
+		assertThat(mavenPom(request)).hasProfile("production").lines().containsSequence(
+		// @formatter:off
+				"		<profile>",
+				"			<id>production</id>",
+				"			<dependencies>",
+				"				<dependency>",
+				"					<groupId>com.vaadin</groupId>",
+				"					<artifactId>vaadin-core</artifactId>",
+				"					<exclusions>",
+				"						<exclusion>",
+				"							<groupId>com.vaadin</groupId>",
+				"							<artifactId>vaadin-dev</artifactId>",
+				"						</exclusion>",
+				"					</exclusions>",
+				"				</dependency>",
+				"",
+				"			</dependencies>",
+				"			<build>",
+				"				<plugins>",
+				"					<plugin>",
+				"						<groupId>com.vaadin</groupId>",
+				"						<artifactId>vaadin-maven-plugin</artifactId>",
+				"						<version>${vaadin.version}</version>",
+				"						<executions>",
+				"							<execution>",
+				"								<id>frontend</id>",
+				"								<phase>compile</phase>",
+				"								<goals>",
+				"									<goal>prepare-frontend</goal>",
+				"									<goal>build-frontend</goal>",
+				"								</goals>",
+				"							</execution>",
+				"						</executions>",
+				"					</plugin>",
+				"				</plugins>",
+				"			</build>",
+				"		</profile>"
+		);
 	}
 
 	@Test
@@ -58,7 +84,7 @@ class VaadinProjectGenerationConfigurationTests extends AbstractExtensionTests {
 
 	@Test
 	void gradleBuildWithVaadinAddPlugin() {
-		ProjectRequest request = createProjectRequest("vaadin", "data-jpa");
+		ProjectRequest request = createProjectRequest(BOOT_VERSION, "vaadin", "data-jpa");
 		String vaadinVersion = getMetadata().getConfiguration()
 			.getEnv()
 			.getBoms()
@@ -75,7 +101,7 @@ class VaadinProjectGenerationConfigurationTests extends AbstractExtensionTests {
 
 	@Test
 	void gitIgnoreWithVaadinIgnoreNodeModules() {
-		assertThat(generateProject(createProjectRequest("vaadin", "data-jpa"))).textFile(".gitignore")
+		assertThat(generateProject(createProjectRequest(BOOT_VERSION, "vaadin", "data-jpa"))).textFile(".gitignore")
 			.contains("node_modules");
 	}
 
@@ -85,11 +111,14 @@ class VaadinProjectGenerationConfigurationTests extends AbstractExtensionTests {
 			.doesNotContain("node_modules");
 	}
 
-	@Override
-	protected ProjectRequest createProjectRequest(String... dependencies) {
-		ProjectRequest request = super.createProjectRequest(dependencies);
-		request.setBootVersion("3.1.0");
-		return request;
+	@Test
+	void shouldAddLaunchBrowserProperty() {
+		assertThat(applicationProperties(createProjectRequest(BOOT_VERSION, "vaadin"))).lines().contains("vaadin.launch-browser=true");
+	}
+
+	@Test
+	void shouldNotAddLaunchBrowserPropertyIfVaadinIsNotSelected() {
+		assertThat(applicationProperties(createProjectRequest("data-jpa"))).lines().doesNotContain("vaadin.launch-browser=true");
 	}
 
 }

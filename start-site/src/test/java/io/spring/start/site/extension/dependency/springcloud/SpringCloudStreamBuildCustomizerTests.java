@@ -83,7 +83,6 @@ class SpringCloudStreamBuildCustomizerTests extends AbstractExtensionTests {
 	@Test
 	void springCloudStreamWithPulsar() {
 		ProjectRequest request = createProjectRequest("cloud-stream", "pulsar");
-		request.setBootVersion("3.2.0-RC1");
 		assertThat(mavenPom(request)).hasDependency(getDependency("cloud-stream"))
 			.hasDependency(getDependency("pulsar"))
 			.hasDependency(PULSAR_BINDER)
